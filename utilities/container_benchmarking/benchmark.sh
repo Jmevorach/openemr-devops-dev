@@ -335,10 +335,11 @@ benchmark_resources() {
     echo "timestamp,cpu_percent,memory_usage_mb,memory_limit_mb" > "${stats_file}"
     
     # Monitor for specified duration
-    local end_time
-    end_time=$(($(date +%s) + LOAD_TEST_DURATION))
+    local current_time end_time
+    current_time=$(date +%s) || true
+    end_time=$((current_time + LOAD_TEST_DURATION))
     
-    while [[ $(date +%s) -lt ${end_time} ]]; do
+    while current_time=$(date +%s) || true; [[ ${current_time} -lt ${end_time} ]]; do
         local stats
         stats=$(docker stats "${container_name}" --no-stream --format "{{.CPUPerc}},{{.MemUsage}}" 2>/dev/null || echo "0,0 B / 0 B")
         
@@ -349,7 +350,9 @@ benchmark_resources() {
         local mem_limit
         mem_limit=$(echo "${stats}" | cut -d',' -f2 | awk '{print $3}' | tr -d 'MiB' || echo "0")
         
-        echo "$(date +%s),${cpu_percent},${mem_usage},${mem_limit}" >> "${stats_file}"
+        local timestamp
+        timestamp=$(date +%s) || true
+        echo "${timestamp},${cpu_percent},${mem_usage},${mem_limit}" >> "${stats_file}"
         sleep 5
     done
     
@@ -423,8 +426,10 @@ main() {
     mkdir -p "${RESULTS_DIR}"
     
     # Initialize result file
+    local current_date
+    current_date=$(date) || true
     {
-        echo "Container Benchmark Results - $(date)"
+        echo "Container Benchmark Results - ${current_date}"
         echo "Image A Context: ${IMAGE_A_CONTEXT}"
         echo "Image B Image: ${IMAGE_B_IMAGE}"
         echo "Load Test: ${LOAD_TEST_CONCURRENT} concurrent, ${LOAD_TEST_REQUESTS} requests"
@@ -525,10 +530,20 @@ main() {
     fi
     
     # Wait for both MySQL instances to be healthy
-    if ! wait_for_mysql_service "mysql-a" "MySQL-A"; then
+    # Note: We use set +e temporarily to capture return status without triggering errexit
+    set +e
+    wait_for_mysql_service "mysql-a" "MySQL-A"
+    local mysql_a_status=$?
+    set -e
+    if [[ ${mysql_a_status} -ne 0 ]]; then
         exit 1
     fi
-    if ! wait_for_mysql_service "mysql-b" "MySQL-B"; then
+    
+    set +e
+    wait_for_mysql_service "mysql-b" "MySQL-B"
+    local mysql_b_status=$?
+    set -e
+    if [[ ${mysql_b_status} -ne 0 ]]; then
         exit 1
     fi
     
