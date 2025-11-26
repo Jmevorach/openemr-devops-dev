@@ -1,0 +1,7 @@
+# Benchmark results
+results/
+
+# Temporary files
+*.tmp
+*.log
+
