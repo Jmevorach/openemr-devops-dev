@@ -44,24 +44,24 @@ log_section() {
 
 # Extract metric from result file
 extract_metric() {
-    local file=$1
-    local metric=$2
-    grep "^${metric}=" "$file" | cut -d'=' -f2 | sed 's/s$//' | sed 's/ms$//' || echo ""
+    local file="${1}"
+    local metric="${2}"
+    grep "^${metric}=" "${file}" | cut -d'=' -f2 | sed 's/s$//' | sed 's/ms$//' || echo ""
 }
 
 # Compare two values and return percentage difference
 calculate_diff() {
-    local val_a=$1
-    local val_b=$2
-    local metric_type=$3  # "lower_better" or "higher_better"
+    local val_a="${1}"
+    local val_b="${2}"
+    local metric_type="${3}"  # "lower_better" or "higher_better"
     
-    if [ -z "$val_a" ] || [ -z "$val_b" ] || [ "$val_a" = "0" ] || [ "$val_b" = "0" ]; then
+    if [[ -z "${val_a}" ]] || [[ -z "${val_b}" ]] || [[ "${val_a}" = "0" ]] || [[ "${val_b}" = "0" ]]; then
         echo "N/A"
         return
     fi
     
     local diff
-    if [ "$metric_type" = "lower_better" ]; then
+    if [[ "${metric_type}" = "lower_better" ]]; then
         # For metrics where lower is better (startup time, response time)
         diff=$(python3 -c "print(round(((${val_b} - ${val_a}) / ${val_a}) * 100, 2))" 2>/dev/null || echo "0")
     else
@@ -69,33 +69,30 @@ calculate_diff() {
         diff=$(python3 -c "print(round(((${val_a} - ${val_b}) / ${val_b}) * 100, 2))" 2>/dev/null || echo "0")
     fi
     
-    echo "$diff"
+    echo "${diff}"
 }
 
 # Format comparison result
 format_comparison() {
-    local val_a=$1
-    local val_b=$2
-    local diff=$3
-    local metric_type=$4
-    local unit=$5
+    local val_a="${1}"
+    local val_b="${2}"
+    local diff="${3}"
+    local metric_type="${4}"
+    local unit="${5}"
     
-    if [ "$diff" = "N/A" ]; then
+    if [[ "${diff}" = "N/A" ]]; then
         printf "%b\n" "${YELLOW}N/A${NC}"
         return
     fi
-    
-    local diff_abs
-    diff_abs=$(python3 -c "print(abs(${diff}))" 2>/dev/null || echo "0")
     
     local is_positive
     is_positive=$(python3 -c "print(1 if ${diff} > 0 else 0)" 2>/dev/null || echo "0")
     local is_negative
     is_negative=$(python3 -c "print(1 if ${diff} < 0 else 0)" 2>/dev/null || echo "0")
     
-    if [ "$is_positive" = "1" ]; then
+    if [[ "${is_positive}" = "1" ]]; then
         printf "%b\n" "${GREEN}+${diff}%${NC} (${val_a}${unit} vs ${val_b}${unit})"
-    elif [ "$is_negative" = "1" ]; then
+    elif [[ "${is_negative}" = "1" ]]; then
         printf "%b\n" "${RED}${diff}%${NC} (${val_a}${unit} vs ${val_b}${unit})"
     else
         printf "%b\n" "${CYAN}0%${NC} (${val_a}${unit} vs ${val_b}${unit})"
@@ -104,52 +101,52 @@ format_comparison() {
 
 # Compare Image A vs Image B from a result file
 compare_file() {
-    local file=$1
+    local file="${1}"
     
-    if [ ! -f "$file" ]; then
-        log_error "Result file not found: $file"
+    if [[ ! -f "${file}" ]]; then
+        log_error "Result file not found: ${file}"
         return 1
     fi
     
     log_section "Comparing Benchmark Results"
     
-    echo "Benchmark File: $(basename "$file")"
+    echo "Benchmark File: $(basename "${file}")"
     echo ""
     
     # Extract metrics - Image A vs Image B from the same file
     local startup_a startup_b
-    startup_a=$(extract_metric "$file" "Image_A_startup_time")
-    startup_b=$(extract_metric "$file" "Image_B_startup_time")
+    startup_a=$(extract_metric "${file}" "Image_A_startup_time")
+    startup_b=$(extract_metric "${file}" "Image_B_startup_time")
     
     local rps_a rps_b
-    rps_a=$(extract_metric "$file" "Image_A_requests_per_second")
-    rps_b=$(extract_metric "$file" "Image_B_requests_per_second")
+    rps_a=$(extract_metric "${file}" "Image_A_requests_per_second")
+    rps_b=$(extract_metric "${file}" "Image_B_requests_per_second")
     
     local time_a time_b
-    time_a=$(extract_metric "$file" "Image_A_time_per_request_ms")
-    time_b=$(extract_metric "$file" "Image_B_time_per_request_ms")
+    time_a=$(extract_metric "${file}" "Image_A_time_per_request_ms")
+    time_b=$(extract_metric "${file}" "Image_B_time_per_request_ms")
     
     local cpu_a cpu_b
-    cpu_a=$(extract_metric "$file" "Image_A_avg_cpu_percent")
-    cpu_b=$(extract_metric "$file" "Image_B_avg_cpu_percent")
+    cpu_a=$(extract_metric "${file}" "Image_A_avg_cpu_percent")
+    cpu_b=$(extract_metric "${file}" "Image_B_avg_cpu_percent")
     
     local mem_a mem_b
-    mem_a=$(extract_metric "$file" "Image_A_avg_memory_mb")
-    mem_b=$(extract_metric "$file" "Image_B_avg_memory_mb")
+    mem_a=$(extract_metric "${file}" "Image_A_avg_memory_mb")
+    mem_b=$(extract_metric "${file}" "Image_B_avg_memory_mb")
     
     local peak_mem_a peak_mem_b
-    peak_mem_a=$(extract_metric "$file" "Image_A_peak_memory_mb")
-    peak_mem_b=$(extract_metric "$file" "Image_B_peak_memory_mb")
+    peak_mem_a=$(extract_metric "${file}" "Image_A_peak_memory_mb")
+    peak_mem_b=$(extract_metric "${file}" "Image_B_peak_memory_mb")
     
     # Calculate differences (Image A vs Image B)
     local startup_diff rps_diff time_diff cpu_diff mem_diff peak_mem_diff
     
-    startup_diff=$(calculate_diff "$startup_a" "$startup_b" "lower_better")
-    rps_diff=$(calculate_diff "$rps_a" "$rps_b" "higher_better")
-    time_diff=$(calculate_diff "$time_a" "$time_b" "lower_better")
-    cpu_diff=$(calculate_diff "$cpu_a" "$cpu_b" "lower_better")
-    mem_diff=$(calculate_diff "$mem_a" "$mem_b" "lower_better")
-    peak_mem_diff=$(calculate_diff "$peak_mem_a" "$peak_mem_b" "lower_better")
+    startup_diff=$(calculate_diff "${startup_a}" "${startup_b}" "lower_better")
+    rps_diff=$(calculate_diff "${rps_a}" "${rps_b}" "higher_better")
+    time_diff=$(calculate_diff "${time_a}" "${time_b}" "lower_better")
+    cpu_diff=$(calculate_diff "${cpu_a}" "${cpu_b}" "lower_better")
+    mem_diff=$(calculate_diff "${mem_a}" "${mem_b}" "lower_better")
+    peak_mem_diff=$(calculate_diff "${peak_mem_a}" "${peak_mem_b}" "lower_better")
     
     # Display comparison
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -157,22 +154,22 @@ compare_file() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     printf "Startup Time              | %-15s | %-15s | " "${startup_a}s" "${startup_b}s"
-    format_comparison "$startup_a" "$startup_b" "$startup_diff" "lower_better" "s"
+    format_comparison "${startup_a}" "${startup_b}" "${startup_diff}" "lower_better" "s"
     
     printf "Requests/Second           | %-15s | %-15s | " "${rps_a}" "${rps_b}"
-    format_comparison "$rps_a" "$rps_b" "$rps_diff" "higher_better" ""
+    format_comparison "${rps_a}" "${rps_b}" "${rps_diff}" "higher_better" ""
     
     printf "Avg Response Time         | %-15s | %-15s | " "${time_a}ms" "${time_b}ms"
-    format_comparison "$time_a" "$time_b" "$time_diff" "lower_better" "ms"
+    format_comparison "${time_a}" "${time_b}" "${time_diff}" "lower_better" "ms"
     
     printf "Avg CPU Usage             | %-15s | %-15s | " "${cpu_a}%" "${cpu_b}%"
-    format_comparison "$cpu_a" "$cpu_b" "$cpu_diff" "lower_better" "%"
+    format_comparison "${cpu_a}" "${cpu_b}" "${cpu_diff}" "lower_better" "%"
     
     printf "Avg Memory Usage          | %-15s | %-15s | " "${mem_a}MB" "${mem_b}MB"
-    format_comparison "$mem_a" "$mem_b" "$mem_diff" "lower_better" "MB"
+    format_comparison "${mem_a}" "${mem_b}" "${mem_diff}" "lower_better" "MB"
     
     printf "Peak Memory Usage         | %-15s | %-15s | " "${peak_mem_a}MB" "${peak_mem_b}MB"
-    format_comparison "$peak_mem_a" "$peak_mem_b" "$peak_mem_diff" "lower_better" "MB"
+    format_comparison "${peak_mem_a}" "${peak_mem_b}" "${peak_mem_diff}" "lower_better" "MB"
     
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
@@ -182,7 +179,6 @@ compare_file() {
     
     local better_count=0
     local worse_count=0
-    local equal_count=0
     
     # Count wins (Image A better)
     local startup_better startup_worse
@@ -220,9 +216,9 @@ compare_file() {
     printf "  %b\n" "${RED}Worse: ${worse_count} metrics${NC}"
     printf "\n"
     
-    if [ "$better_count" -gt "$worse_count" ]; then
+    if [[ "${better_count}" -gt "${worse_count}" ]]; then
         log_success "Image A performs better overall"
-    elif [ "$worse_count" -gt "$better_count" ]; then
+    elif [[ "${worse_count}" -gt "${better_count}" ]]; then
         log_warning "Image B performs better overall"
     else
         log_info "Images perform similarly"
@@ -233,25 +229,25 @@ compare_file() {
 main() {
     local files=("$@")
     
-    if [ ${#files[@]} -eq 0 ]; then
+    if [[ ${#files[@]} -eq 0 ]]; then
         # Find most recent result file
         log_info "No file specified, finding most recent result..."
         local recent_file
-        recent_file=$(find "$RESULTS_DIR" -name "benchmark_*.txt" -type f | sort -r | head -1)
+        recent_file=$(find "${RESULTS_DIR}" -name "benchmark_*.txt" -type f | sort -r | head -1)
         
-        if [ -z "$recent_file" ] || [ ! -f "$recent_file" ]; then
+        if [[ -z "${recent_file}" ]] || [[ ! -f "${recent_file}" ]]; then
             log_error "No benchmark results found"
             log_info "Available files:"
-            find "$RESULTS_DIR" -name "benchmark_*.txt" -type f | sort -r | head -5
+            find "${RESULTS_DIR}" -name "benchmark_*.txt" -type f | sort -r | head -5
             exit 1
         fi
         
-        files=("$recent_file")
-        log_info "Comparing Image A vs Image B from: $(basename "$recent_file")"
+        files=("${recent_file}")
+        log_info "Comparing Image A vs Image B from: $(basename "${recent_file}")"
         echo ""
     fi
     
-    if [ ${#files[@]} -eq 0 ]; then
+    if [[ ${#files[@]} -eq 0 ]]; then
         log_error "No file specified"
         exit 1
     fi
@@ -261,4 +257,3 @@ main() {
 }
 
 main "$@"
-
